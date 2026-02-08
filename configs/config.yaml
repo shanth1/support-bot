@@ -1,0 +1,32 @@
+env: "local"
+
+logger:
+  level: "info"
+  app: "support-bot"
+  service: "support-bot"
+  enable_caller: false
+
+bot:
+  admin_group_id: 0
+  topic_id: 0
+  poller_timeout: 10s
+
+server:
+  enabled: true
+  addr: "8088"
+
+storage:
+  path: "./data/support.db"
+  retention_days: 30
+
+messages:
+  start: "👋 Здравствуйте! Это служба поддержки.\nОпишите вашу проблему одним сообщением или пришлите скриншот."
+  user_sent_ok: "✅ Ваше сообщение передано оператору."
+
+  admin_reply_sent: "✅ Ответ отправлен пользователю."
+  admin_notification_header: "📩 <b>Новое обращение</b> от"
+
+  error_user_blocked: "❌ Не удалось отправить: пользователь заблокировал бота."
+  error_copy_failed: "⚠️ Ошибка отправки: сбой API Телеграма или сети."
+  error_user_not_found: "⚠️ Невозможно ответить: данные о пользователе устарели или не найдены."
+  error_generic: "⚠️ Ошибка сервиса. Попробуйте позже."

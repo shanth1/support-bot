@@ -4,91 +4,86 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
+	"time"
 
-	"github.com/joho/godotenv"
-	"go.yaml.in/yaml/v2"
+	"github.com/go-playground/validator/v10"
+	"github.com/shanth1/gotools/conf"
+	"github.com/shanth1/gotools/consts"
+	"github.com/shanth1/gotools/env"
+	"github.com/shanth1/gotools/flags"
+	"github.com/shanth1/gotools/log"
 )
 
 type Config struct {
-	BotToken     string
-	AdminGroupID int64
-	APIKey       string
-	Port         string
-	DBPath       string
+	Env consts.Env `mapstructure:"env" env:"APP_ENV" validate:"required,oneof=local dev stage prod"`
 
-	Templates struct {
-		AdminNotification string `yaml:"admin_notification"`
-		UserForward       string `yaml:"user_forward"`
-	} `yaml:"templates"`
+	Logger log.Config `mapstructure:"logger" validate:"required"`
 
-	Messages struct {
-		UserSentOk       string `yaml:"user_sent_ok"`
-		AdminSentOk      string `yaml:"admin_sent_ok"`
-		ErrorUserBlocked string `yaml:"error_user_blocked"`
-		ErrorNotFound    string `yaml:"error_not_found"`
-	} `yaml:"messages"`
+	Bot struct {
+		Token         string        `mapstructure:"-" env:"BOT_TOKEN" validate:"required"`
+		AdminGroupID  int64         `mapstructure:"admin_group_id" env:"BOT_ADMIN_GROUP_ID"`
+		TopicID       int           `mapstructure:"topic_id" env:"BOT_TOPIC_ID"`
+		PollerTimeout time.Duration `mapstructure:"poller_timeout" validate:"min=1s"`
+	} `mapstructure:"bot" validate:"required"`
 
-	Projects []ProjectConfig `yaml:"projects"`
+	Server struct {
+		Enabled bool   `mapstructure:"enabled" env:"SERVER_ENABLED" validate:"required"`
+		Addr    string `mapstructure:"addr" env:"SERVER_ADDR" validate:"required,hostname_port"`
+		APIKey  string `mapstructure:"-" env:"SERVER_API_KEY"`
+	} `mapstructure:"server" validate:"required"`
+
+	Storage struct {
+		Path          string `mapstructure:"path" env:"STORAGE_PATH" validate:"required"`
+		RetentionDays int    `mapstructure:"retention_days" validate:"required,min=1"`
+	} `mapstructure:"storage" validate:"required"`
+
+	Messages Messages `mapstructure:"messages" validate:"required"`
 }
 
-type ProjectConfig struct {
-	ID       string `yaml:"id"`
-	Name     string `yaml:"name"`
-	TopicID  int    `yaml:"topic_id"`
-	Greeting string `yaml:"greeting"`
+type Messages struct {
+	Start                   string `mapstructure:"start" validate:"required"`
+	UserSentOk              string `mapstructure:"user_sent_ok" validate:"required"`
+	AdminReplySent          string `mapstructure:"admin_reply_sent" validate:"required"`
+	AdminNotificationHeader string `mapstructure:"admin_notification_header" validate:"required"`
+	ErrorUserBlocked        string `mapstructure:"error_user_blocked" validate:"required"`
+	ErrorCopyFailed         string `mapstructure:"error_copy_failed" validate:"required"`
+	ErrorUserNotFound       string `mapstructure:"error_user_not_found" validate:"required"`
+	ErrorGeneric            string `mapstructure:"error_generic" validate:"required"`
 }
 
-func MustLoad() *Config {
-	_ = godotenv.Load()
+type bootstrapConfig struct {
+	ConfigPath string `flag:"config" usage:"Path to the mapstructure config file"`
+	EnvPath    string `flag:"env" usage:"Path to the env file"`
+}
 
-	langFlag := flag.String("lang", "", "Language to use (ru/en)")
+func Load() (*Config, error) {
+	bootCfg := &bootstrapConfig{}
+	if err := flags.RegisterFromStruct(bootCfg); err != nil {
+		return nil, fmt.Errorf("register flags: %w", err)
+	}
 	flag.Parse()
 
-	lang := *langFlag
-	if lang == "" {
-		lang = os.Getenv("APP_LANG")
-	}
-	if lang == "" {
-		lang = "ru"
+	if _, err := os.Stat(bootCfg.ConfigPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("config file not found at path: %s", bootCfg.ConfigPath)
 	}
 
-	configPath := filepath.Join("configs", fmt.Sprintf("%s.yaml", lang))
-	file, err := os.ReadFile(configPath)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to load config for lang '%s': %v", lang, err))
+	cfg := &Config{}
+	if err := conf.Load(bootCfg.ConfigPath, cfg); err != nil {
+		return nil, fmt.Errorf("load config: %w", err)
 	}
 
-	var cfg Config
-	if err := yaml.Unmarshal(file, &cfg); err != nil {
-		panic("Failed to parse YAML: " + err.Error())
+	fmt.Println("TEST", bootCfg.ConfigPath)
+
+	fmt.Println("ENV:", bootCfg.EnvPath)
+	if err := env.LoadIntoStruct(bootCfg.EnvPath, cfg); err != nil {
+		return nil, fmt.Errorf("load env: %w", err)
 	}
 
-	cfg.BotToken = os.Getenv("BOT_TOKEN")
-	cfg.APIKey = os.Getenv("API_KEY")
-	cfg.Port = getEnv("PORT", "8088")
-	cfg.DBPath = getEnv("DB_PATH", "./data/support.db")
-	fmt.Sscanf(os.Getenv("ADMIN_GROUP_ID"), "%d", &cfg.AdminGroupID)
-
-	if cfg.BotToken == "" {
-		panic("BOT_TOKEN is not set")
-	}
-
-	return &cfg
+	fmt.Println("TEST:", cfg)
+	return cfg, nil
 }
 
-func getEnv(key, defaultVal string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return defaultVal
-}
-
-func (c *Config) GetProject(id string) ProjectConfig {
-	for _, p := range c.Projects {
-		if p.ID == id {
-			return p
-		}
-	}
-	return c.Projects[len(c.Projects)-1]
+func (c *Config) Validate() error {
+	validate := validator.New()
+	return validate.Struct(c)
 }

@@ -1,29 +1,51 @@
 package main
 
 import (
-	"log/slog"
-	"net/http"
-	"os"
+	"time"
 
-	"github.com/shanth1/support-bot/internal/bot"
+	"github.com/shanth1/gotools/consts"
+	"github.com/shanth1/gotools/ctx"
+	"github.com/shanth1/gotools/log"
+	"github.com/shanth1/gotools/logkeys"
+	"github.com/shanth1/support-bot/internal/app"
 	"github.com/shanth1/support-bot/internal/config"
-	"github.com/shanth1/support-bot/internal/server"
-	"github.com/shanth1/support-bot/internal/storage"
 )
 
 func main() {
-	_ = os.Mkdir("data", 0755)
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	cfg := config.MustLoad()
-	store, _ := storage.New(cfg.DBPath)
-	tgBot, _ := bot.New(cfg, store, logger)
-	srv := &http.Server{
-		Addr:    ":" + cfg.Port,
-		Handler: server.NewMux(tgBot, cfg.APIKey),
+	ctx, shutdownCtx, cancel, shutdownCancel := ctx.WithGracefulShutdown(10 * time.Second)
+	defer cancel()
+	defer shutdownCancel()
+
+	logger := log.New()
+	logger.Info().Msg("starting service")
+
+	cfg, err := config.Load()
+	if err != nil {
+		logger.Fatal().Err(err).Msg("load config")
 	}
 
-	go tgBot.Start()
+	if err := cfg.Validate(); err != nil {
+		logger.Fatal().Err(err).Msg("invalid configuration")
+	}
 
-	logger.Info("Server started", "port", cfg.Port)
-	srv.ListenAndServe()
+	logger = logger.WithOptions(log.WithConfig(log.Config{
+		Level:        cfg.Logger.Level,
+		App:          cfg.Logger.App,
+		Service:      cfg.Logger.Service,
+		UDPAddress:   cfg.Logger.UDPAddress,
+		EnableCaller: cfg.Logger.EnableCaller,
+		Console:      cfg.Env != consts.EnvProd,
+		JSONOutput:   cfg.Env == consts.EnvProd,
+	}))
+
+	logger.Info().Any(logkeys.Env, cfg.Env).Msg("application has been successfully configured")
+
+	ctx = log.NewContext(ctx, logger)
+
+	app, err := app.New(cfg, logger)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("failed to create app")
+	}
+
+	app.Run(ctx, shutdownCtx)
 }
