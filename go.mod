@@ -4,6 +4,7 @@ go 1.25.5
 
 require (
 	github.com/joho/godotenv v1.5.1
+	go.yaml.in/yaml/v2 v2.4.3
 	gopkg.in/telebot.v3 v3.3.8
 	modernc.org/sqlite v1.44.3
 )

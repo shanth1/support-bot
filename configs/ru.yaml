@@ -1,0 +1,21 @@
+templates:
+  admin_notification: |
+    🚀 <b>{{.ProjectName}}</b> [{{.Type}}]
+    <b>От:</b> {{.Name}}
+    <b>Сообщение:</b> {{.Message}}
+  user_forward: |
+    👤 <b>Новое обращение</b>
+    <b>Проект:</b> {{.ProjectName}}
+    <b>Юзер:</b> {{.UserName}} (@{{.UserHandle}})
+
+messages:
+  user_sent_ok: "✅ Сообщение доставлено поддержке. Ожидайте ответа!"
+  admin_sent_ok: "✅ Ответ отправлен пользователю."
+  error_user_blocked: "❌ Не удалось доставить: пользователь заблокировал бота."
+  error_not_found: "❌ Ошибка: не нашел этого пользователя в базе."
+
+projects:
+  - id: "default"
+    name: "Общая поддержка"
+    topic_id: 0
+    greeting: "Здравствуйте! Напишите ваш вопрос здесь."

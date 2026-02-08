@@ -3,20 +3,22 @@ package server
 import (
 	"encoding/json"
 	"net/http"
-
-	"github.com/shanth1/support-bot/internal/bot"
 )
 
 type NotificationReq struct {
-	Project string `json:"project"`
-	Type    string `json:"type"`
-	Name    string `json:"name"`
-	Email   string `json:"email"`
-	Message string `json:"message"`
-	TopicID int    `json:"topic_id"`
+	Project string            `json:"project"`
+	Type    string            `json:"type"`
+	Name    string            `json:"name"`
+	Email   string            `json:"email"`
+	Message string            `json:"message"`
+	Meta    map[string]string `json:"meta"`
 }
 
-func NewMux(b *bot.Bot, apiKey string) *http.ServeMux {
+type BotService interface {
+	SendNotification(project, msgType, name, email, message string, meta map[string]string) error
+}
+
+func NewMux(bot BotService, apiKey string) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST /notify", func(w http.ResponseWriter, r *http.Request) {
@@ -31,14 +33,14 @@ func NewMux(b *bot.Bot, apiKey string) *http.ServeMux {
 			return
 		}
 
-		err := b.SendNotification(req.Project, req.Type, req.Name, req.Email, req.Message, req.TopicID)
+		err := bot.SendNotification(req.Project, req.Type, req.Name, req.Email, req.Message, req.Meta)
 		if err != nil {
-			http.Error(w, "Bot Error", http.StatusInternalServerError)
+			http.Error(w, "Internal Error", http.StatusInternalServerError)
 			return
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
+		w.Write([]byte(`{"status":"sent"}`))
 	})
 
 	return mux
