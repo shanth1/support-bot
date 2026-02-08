@@ -27,7 +27,7 @@ func New(cfg *config.Config, store *storage.Storage, l log.Logger) (*SupportBot,
 			l.Error().
 				Err(err).
 				Str(logkeys.Component, "telebot").
-				Msg("Telegram error")
+				Msg("telegram error")
 		},
 	}
 
@@ -48,7 +48,7 @@ func (b *SupportBot) Run(ctx context.Context, shutdownCtx context.Context) error
 	b.registerHandlers()
 
 	go b.bot.Start()
-	b.log.Info().Str(logkeys.Service, b.bot.Me.Username).Msg("bot started")
+	b.log.Info().Str("user_name", b.bot.Me.Username).Msg("bot started")
 
 	<-ctx.Done()
 	b.log.Info().Msg("stopping bot...")
@@ -59,12 +59,11 @@ func (b *SupportBot) Run(ctx context.Context, shutdownCtx context.Context) error
 		close(stopped)
 	}()
 
-	// Ждем либо пока бот сам остановится, либо пока истечет shutdownCtx
 	select {
 	case <-stopped:
-		b.log.Info().Msg("Bot stopped gracefully")
+		b.log.Info().Msg("bot stopped gracefully")
 	case <-shutdownCtx.Done():
-		b.log.Warn().Msg("Bot stopping timed out (shutdownCtx expired)")
+		b.log.Warn().Msg("bot stopping timed out (shutdownCtx expired)")
 	}
 
 	return nil
@@ -79,6 +78,10 @@ func (b *SupportBot) registerHandlers() {
 	b.bot.Handle(tele.OnPhoto, b.handleMessage)
 	b.bot.Handle(tele.OnDocument, b.handleMessage)
 	b.bot.Handle(tele.OnVideo, b.handleMessage)
+	b.bot.Handle(tele.OnAnimation, b.handleMessage)
+	b.bot.Handle(tele.OnAudio, b.handleMessage)
+	b.bot.Handle(tele.OnVoice, b.handleMessage)
+	b.bot.Handle(tele.OnVideoNote, b.handleMessage)
 }
 
 func (b *SupportBot) handleMessage(c tele.Context) error {
@@ -100,13 +103,13 @@ func (b *SupportBot) forwardToAdmin(c tele.Context) error {
 
 	headerMsg, err := b.bot.Send(tele.ChatID(b.cfg.Bot.AdminGroupID), headerText, sendOpts, tele.ModeHTML)
 	if err != nil {
-		b.log.Error().Err(err).Msg("Failed to send header to admin")
+		b.log.Error().Err(err).Msg("failed to send header to admin")
 		return c.Send(b.cfg.Messages.ErrorGeneric)
 	}
 
 	forwardedMsg, err := b.bot.Forward(tele.ChatID(b.cfg.Bot.AdminGroupID), c.Message(), sendOpts)
 	if err != nil {
-		b.log.Error().Err(err).Msg("Failed to forward message")
+		b.log.Error().Err(err).Msg("failed to forward message")
 		return c.Send(b.cfg.Messages.ErrorGeneric)
 	}
 
@@ -123,16 +126,13 @@ func (b *SupportBot) handleAdminReply(c tele.Context) error {
 
 	userID, err := b.store.GetUserByAdminMsg(context.Background(), c.Message().ReplyTo.ID)
 	if err != nil {
-		b.log.Debug().
-			Int("admin_msg_id", c.Message().ReplyTo.ID).
-			Err(err).
-			Msg("Route not found. Ignoring message (possibly belongs to another bot)")
-
+		b.log.Debug().Err(err).
+			Int("reply_to_id", c.Message().ReplyTo.ID).
+			Msg("getting user by admin message failed")
 		return nil
 	}
 
 	_, err = b.bot.Copy(tele.ChatID(userID), c.Message())
-
 	if err != nil {
 		errText := err.Error()
 
@@ -140,7 +140,7 @@ func (b *SupportBot) handleAdminReply(c tele.Context) error {
 			Err(err).
 			Int64(logkeys.UserID, userID).
 			Str("tele_error", errText).
-			Msg("Failed to copy message to user")
+			Msg("failed to copy message to user")
 
 		isBlocked := strings.Contains(strings.ToLower(errText), "blocked") ||
 			strings.Contains(strings.ToLower(errText), "forbidden") ||

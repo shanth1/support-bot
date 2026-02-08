@@ -91,7 +91,7 @@ func (s *Storage) StartCleaner(ctx context.Context, retentionDays int) {
 	ticker := time.NewTicker(1 * time.Hour)
 	go func() {
 		defer ticker.Stop()
-		s.log.Info().Int("retention_days", retentionDays).Msg("DB cleaner started")
+		s.log.Info().Int("retention_days", retentionDays).Msg("db cleaner started")
 		for {
 			select {
 			case <-ctx.Done():
@@ -100,14 +100,14 @@ func (s *Storage) StartCleaner(ctx context.Context, retentionDays int) {
 				cutoff := time.Now().AddDate(0, 0, -retentionDays).Unix()
 				res, err := s.db.ExecContext(ctx, "DELETE FROM message_routes WHERE created_at < ?", cutoff)
 				if err != nil {
-					s.log.Error().Err(err).Msg("Failed to clean DB")
+					s.log.Error().Err(err).Msg("failed to clean DB")
 					continue
 				}
 				rows, _ := res.RowsAffected()
 				if rows > 0 {
 					s.log.Info().
 						Int64(logkeys.DBRows, rows).
-						Msg("DB cleanup complete")
+						Msg("db cleanup complete")
 				}
 			}
 		}

@@ -72,14 +72,10 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("load config: %w", err)
 	}
 
-	fmt.Println("TEST", bootCfg.ConfigPath)
-
-	fmt.Println("ENV:", bootCfg.EnvPath)
 	if err := env.LoadIntoStruct(bootCfg.EnvPath, cfg); err != nil {
 		return nil, fmt.Errorf("load env: %w", err)
 	}
 
-	fmt.Println("TEST:", cfg)
 	return cfg, nil
 }
 

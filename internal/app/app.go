@@ -27,26 +27,22 @@ func New(cfg *config.Config, logger log.Logger) (Worker, error) {
 		logger: logger,
 	}
 
-	// 1. Storage
 	store, err := storage.New(cfg.Storage.Path, logger)
 	if err != nil {
 		return nil, err
 	}
-	// Добавляем в список закрытия (LIFO - Last In First Out)
 	app.onShutdown(func() {
 		logger.Debug().Msg("closing storage...")
 		_ = store.Close()
 	})
 
-	// 2. Bot
 	tgBot, err := bot.New(cfg, store, logger)
 	if err != nil {
-		app.closeAll() // Если бот не создался, закрываем то, что успели открыть (store)
+		app.closeAll()
 		return nil, err
 	}
 	app.workers = append(app.workers, tgBot)
 
-	// 3. HTTP Server
 	if cfg.Server.Enabled && cfg.Server.Addr != "" {
 		srv := server.New(cfg.Server.Addr, cfg.Server.APIKey, tgBot, logger)
 		app.workers = append(app.workers, srv)
@@ -55,7 +51,6 @@ func New(cfg *config.Config, logger log.Logger) (Worker, error) {
 	return app, nil
 }
 
-// Регистрация функций очистки ресурсов
 func (app *App) onShutdown(fn func()) {
 	app.cleanups = append([]func(){fn}, app.cleanups...)
 }
@@ -67,7 +62,6 @@ func (app *App) closeAll() {
 }
 
 func (app *App) Run(ctx context.Context, shutdownCtx context.Context) error {
-	// Важно: закрываем ресурсы (БД) только ПОСЛЕ выхода всех воркеров
 	defer app.closeAll()
 
 	g, runCtx := errgroup.WithContext(ctx)
@@ -75,7 +69,6 @@ func (app *App) Run(ctx context.Context, shutdownCtx context.Context) error {
 	for _, w := range app.workers {
 		worker := w
 		g.Go(func() error {
-			// Передаем оба контекста в каждый воркер
 			return worker.Run(runCtx, shutdownCtx)
 		})
 	}

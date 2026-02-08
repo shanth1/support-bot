@@ -54,8 +54,7 @@ func (s *Server) Run(ctx context.Context, shutdownCtx context.Context) error {
 	case err := <-errChan:
 		return fmt.Errorf("http server: %w", err)
 	case <-ctx.Done():
-		s.log.Info().Msg("HTTP Server received stop signal")
-		// Используем переданный извне shutdownCtx
+		s.log.Info().Msg("http server received stop signal")
 		if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
 			s.log.Warn().Err(err).Msg("HTTP Server shutdown error")
 			return s.httpServer.Close()
@@ -84,7 +83,7 @@ func (s *Server) handleNotify(w http.ResponseWriter, r *http.Request) {
 		if token != "Bearer "+s.apiKey {
 			s.log.Warn().
 				Str(logkeys.RemoteAddr, r.RemoteAddr).
-				Msg("Unauthorized api attempt")
+				Msg("unauthorized api attempt")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
