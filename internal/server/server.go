@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/subtle" // Добавлено для безопасного сравнения
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -79,8 +80,9 @@ func (s *Server) handleNotify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.apiKey != "" {
-		token := r.Header.Get(consts.HeaderAuthorization)
-		if token != "Bearer "+s.apiKey {
+		key := r.Header.Get("X-Api-Key")
+
+		if subtle.ConstantTimeCompare([]byte(key), []byte(s.apiKey)) != 1 {
 			s.log.Warn().
 				Str(logkeys.RemoteAddr, r.RemoteAddr).
 				Msg("unauthorized api attempt")
