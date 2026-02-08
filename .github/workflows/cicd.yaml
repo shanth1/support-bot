@@ -1,0 +1,70 @@
+name: CI/CD
+
+on:
+  workflow_dispatch:
+
+env:
+  SERVICE_NAME: support
+  REMOTE_PATH:  /opt/support
+  BINARY_NAME:  server
+  GO_VERSION:   '1.23'
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      # 1. Сборка
+      - name: Build
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+            -ldflags "-s -w" \
+            -o build/${{ env.BINARY_NAME }} \
+            ./cmd/api/main.go
+
+      # 2. Подготовка ключей SSH
+      - uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known_hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
+
+      # 3. Деплой (Zero Downtime)
+      - name: Ship it
+        env:
+          SSH_HOST: ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}
+          RELEASE_NAME: release-${{ github.run_id }}-${{ github.run_number }}
+        run: |
+          # Переменная полного пути к новому релизу
+          NEW_DIR="${{ env.REMOTE_PATH }}/releases/$RELEASE_NAME"
+
+          # Создаем папку релиза
+          ssh $SSH_HOST "mkdir -p $NEW_DIR"
+
+          # Заливаем бинарник и конфиги
+          scp build/${{ env.BINARY_NAME }} $SSH_HOST:$NEW_DIR/
+          # Если есть config.yaml, раскомментируй строку ниже:
+          # scp config/config.prod.yaml $SSH_HOST:$NEW_DIR/config.yaml
+
+          # Создаем .env файл из секрета
+          echo "${{ secrets.ENV_FILE }}" | ssh $SSH_HOST "cat > $NEW_DIR/.env"
+
+          # Переключаем симлинки и рестартим (Атомарно)
+          ssh $SSH_HOST <<EOF
+            set -e
+            chmod +x $NEW_DIR/${{ env.BINARY_NAME }}
+
+            # Переключаем ссылку 'current' на новую папку
+            ln -sfn $NEW_DIR ${{ env.REMOTE_PATH }}/current
+
+            # Рестарт сервиса
+            sudo systemctl restart ${{ env.SERVICE_NAME }}
+
+            # Удаляем старые релизы (оставляем 5 последних)
+            cd ${{ env.REMOTE_PATH }}/releases
+            ls -t | tail -n +6 | xargs -I {} rm -rf {}
+          EOF

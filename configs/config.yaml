@@ -1,0 +1,32 @@
+env: "local"
+
+logger:
+  level: "info"
+  app: "support-bot"
+  service: ""
+  enable_caller: false
+
+bot:
+  admin_group_id: 0
+  topic_id: 0
+  poller_timeout: 10s
+
+server:
+  enabled: true
+  addr: "8088"
+
+storage:
+  path: "./data/support.db"
+  retention_days: 30
+
+messages:
+  start: "👋 Здравствуйте! Это служба поддержки.\nОставьте ваш вопрос, предложение или опишите проблему одним сообщением."
+  user_sent_ok: "✅ Ваше сообщение передано оператору. Пожалуйста, ожидайте ответа."
+
+  admin_reply_sent: "✅ Ответ успешно отправлен пользователю."
+  admin_notification_header: "📩 <b>Новое обращение</b> от"
+
+  error_user_blocked: "❌ Не удалось отправить: пользователь заблокировал бота или удалил чат."
+  error_copy_failed: "⚠️ Ошибка отправки: временный сбой в сети Telegram."
+  error_user_not_found: "⚠️ Невозможно ответить: история переписки не найдена или обращение слишком старое."
+  error_generic: "⚠️ Сервис временно недоступен. Попробуйте повторить отправку позже."
